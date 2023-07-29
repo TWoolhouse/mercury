@@ -1,0 +1,20 @@
+[package]
+name = "mercury"
+version = "0.1.0"
+edition = "2021"
+authors = ["Thomas Woolhouse <thomasrwoolhouse@gmail.com>"]
+categories = ["finance", "parser-implementations"]
+description = "A finance helper library for tracking transactions."
+keywords = ["finance", "parser", "mercury"]
+license = "MIT"
+readme = "README.md"
+repository = "github.com/TWoolhouse/mercury"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pest = "2.7.0"
+pest_derive = "2.3.1"
+thiserror = "1.0.43"
+lazy_static = "1.4.0"

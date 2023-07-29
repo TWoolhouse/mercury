@@ -1,0 +1,83 @@
+WHITESPACE = _{ WHITE_SPACE+ }
+
+root = @{
+    SOI ~ root_ ~ EOI
+}
+
+root_ = ${
+    WHITE_SPACE* ~ stmt ~ ((!NEWLINE ~ WHITE_SPACE)* ~ NEWLINE ~ WHITE_SPACE* ~ stmt)* ~ WHITE_SPACE*
+}
+
+stmt = !{
+    assignment
+  | expr
+}
+
+expr = {
+    ("+" | "-")? ~ (list | node | builtin | identifier)
+}
+
+assignment = {
+    ("£")? ~ identifier ~ "=" ~ expr
+}
+
+list = {
+    "[" ~ stmts ~ "]"
+  | "{" ~ stmts ~ "}"
+}
+
+stmts = ${
+    (stmt ~ (!NEWLINE ~ WHITE_SPACE)*)? ~ (NEWLINE ~ WHITE_SPACE* ~ stmt)*
+}
+
+node      = { node_name ~ "," ~ (node_value | node_func) }
+node_name = { name | string }
+
+node_value = { value ~ type }
+node_func  = { "funky time" }
+
+value = @{
+    ("+" | "-")? ~ NUMBER+ ~ ("." ~ NUMBER+)?
+}
+
+type = {
+    type_rate
+  | type_percentage
+}
+
+type_rate = {
+    "wd"
+  | "we"
+  | "y"
+  | "q"
+  | "m"
+  | "w"
+  | "d"
+}
+
+type_percentage = {
+    "%"
+}
+
+builtin = {
+    func ~ "(" ~ (param ~ ("," ~ param)*)? ~ ")"
+}
+
+func = @{
+    identifier ~ ("." ~ identifier)*
+}
+
+param = {
+    value
+  | string
+  | name
+}
+
+identifier      = @{ ALPHABETIC ~ (ALPHABETIC | NUMBER | ((!NEWLINE) ~ WHITE_SPACE) | (!("," | "=") ~ SYMBOL))* }
+name            = @{ ALPHABETIC ~ (ALPHABETIC | NUMBER | ((!NEWLINE) ~ WHITE_SPACE) | (!(",") ~ SYMBOL))* }
+string          = ${
+    PUSH("\""+) ~ string_interior ~ POP
+}
+string_interior =  {
+    (!(PEEK) ~ ANY)*
+}
