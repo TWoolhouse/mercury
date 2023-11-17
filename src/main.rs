@@ -22,7 +22,7 @@ fn main() {
         Ok(store) => {
             let mut values = mercury::evaluate(&store);
             values.sort_by_key(|x| x.0);
-            println!("{:?}", values);
+            println!("{:#?}", values);
         }
         Err(e) => eprintln!("{}", e),
     }
