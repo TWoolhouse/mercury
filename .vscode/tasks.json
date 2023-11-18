@@ -19,7 +19,7 @@
 				"WASM NPM type",
 				"WASM NPM main"
 			],
-			"dependsOrder": "parallel"
+			"dependsOrder": "sequence"
 		},
 		{
 			"label": "Build WASM",
