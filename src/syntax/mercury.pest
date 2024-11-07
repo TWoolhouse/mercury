@@ -1,80 +1,164 @@
 WHITESPACE = _{ WHITE_SPACE+ }
 
 root = @{
-    SOI ~ root_ ~ EOI
+    SOI ~ decleration ~ (WHITESPACE ~ decleration)* ~ EOI
 }
 
-root_ = ${
-    WHITE_SPACE* ~ stmt ~ ((!NEWLINE ~ WHITE_SPACE)* ~ NEWLINE ~ WHITE_SPACE* ~ stmt)* ~ WHITE_SPACE*
+decleration = !{
+    decl_accounts
+  | decl_event
 }
 
-stmt = !{
-    assignment
-  | expr
+decl_event = {
+    schedule ~ (statements_list | statements_set)
 }
 
-expr = {
-    ("+" | "-")? ~ (list | node | builtin | identifier)
+statements = {
+    statements_list
+  | statements_set
+  | statements_single
 }
 
-assignment = {
-    ("£")? ~ identifier ~ "=" ~ expr
+statements_list   = { account? ~ ("[" ~ statements_interior ~ "]") }
+statements_set    = { account? ~ ("{" ~ statements_interior ~ "}") }
+statements_single = { (account_id ~ ">") ~ transaction ~ (">" ~ account_id) ~ (":" ~ label)? }
+
+statements_interior = {
+    statements ~ ("," ~ statements)* ~ ","?
 }
 
-list = {
-    "[" ~ stmts ~ "]"
-  | "{" ~ stmts ~ "}"
+transaction = {
+    (amount ~ trans_mod?)
+  | func
 }
 
-stmts = ${
-    (stmt ~ (!NEWLINE ~ WHITE_SPACE)*)? ~ (NEWLINE ~ WHITE_SPACE* ~ stmt)*
+trans_mod = {
+    ("%" ~ account_id?)
+  | rate
 }
 
-node      = { node_name ~ "," ~ (node_value | node_func) }
-node_name = { name | string }
-
-node_value = { value ~ type }
-node_func  = { "funky time" }
-
-value = @{
-    ("+" | "-")? ~ NUMBER+ ~ ("." ~ NUMBER+)?
+func = {
+    "magic!"
 }
 
-type = {
-    type_rate
-  | type_percentage
+rate = {
+    rate_part ~ "/" ~ rate_part
 }
 
-type_rate = {
-    "wd"
-  | "we"
-  | "y"
+rate_part = {
+    "y"
   | "q"
   | "m"
   | "w"
   | "d"
 }
 
-type_percentage = {
-    "%"
+amount = @{
+    ("+" | "-")? ~ NUMBER ~ ("_"? ~ NUMBER)* ~ ("." ~ NUMBER ~ ("_"? ~ NUMBER)*)?
 }
 
-builtin = {
-    func ~ "(" ~ (param ~ ("," ~ param)*)? ~ ")"
+schedule = {
+    "(" ~ time_expr ~ ")"
+  | &time_function_binary ~ time_function
 }
 
-func = @{
-    identifier ~ ("." ~ identifier)*
+time_expr = _{
+    time_function
+  | time_func_keyword
+  | "(" ~ time_expr ~ ")"
+  | time
 }
 
-param = {
-    value
-  | string
+time_function = {
+    time_function_binary
+  | time_func_not
+  | time_func_lt
+  | time_func_gt
+  | time_func_le
+  | time_func_ge
+  | time_func_by
+}
+
+time_function_binary = _{
+    "(" ~ (time_func_and | time_func_or) ~ ")"
+}
+
+time_func_and = {
+    time_expr ~ ("&" ~ time_expr)+
+}
+time_func_or  = {
+    time_expr ~ ("|" ~ time_expr)+
+}
+
+time_func_not = {
+    "!" ~ time_expr
+}
+
+time_func_lt = {
+    "<" ~ time_expr
+}
+time_func_gt = {
+    ">" ~ time_expr
+}
+time_func_le = {
+    "<=" ~ time_expr
+}
+time_func_ge = {
+    ">=" ~ time_expr
+}
+
+time_func_by = {
+    "by(" ~ time_expr ~ ";" ~ time_expr ~ ")"
+}
+
+time_func_keyword = {
+    "work"
+  | "today"
+}
+
+time = {
+    date
+  | cron
+}
+
+date = @{
+    NUMBER{4} ~ PUSH("/" | "-" | ".") ~ NUMBER{2} ~ POP ~ NUMBER{2}
+}
+
+// TODO: Not the full cron spec
+cron = @{
+    cron_field ~ WHITESPACE ~ cron_field ~ WHITESPACE ~ cron_field ~ (WHITESPACE ~ cron_field)?
+}
+
+cron_field = {
+    cron_field_value ~ ("/" | "-" | ",") ~ cron_field_value
+  | cron_field_value
+}
+
+cron_field_value = {
+    "*"
+  | NUMBER{1, 2}
+}
+
+account = _{
+    "<" ~ account_id ~ ">"
+}
+
+decl_accounts = {
+    "<" ~ account_id ~ ("," ~ account_id)* ~ ">"
+}
+
+account_id = @{
+    identifier
+}
+
+label = {
+    string
   | name
 }
 
-identifier      = @{ ALPHABETIC ~ (ALPHABETIC | NUMBER | ((!NEWLINE) ~ WHITE_SPACE) | (!("," | "=") ~ SYMBOL))* }
-name            = @{ ALPHABETIC ~ (ALPHABETIC | NUMBER | ((!NEWLINE) ~ WHITE_SPACE) | (!(",") ~ SYMBOL))* }
+identifier      = @{ ALPHABETIC ~ (ALPHABETIC | NUMBER)* }
+name            = @{ ALPHABETIC ~ (ALPHABETIC | NUMBER | ((!NEWLINE) ~ WHITE_SPACE))* }
 string          = ${
     PUSH("\""+) ~ string_interior ~ POP
 }
