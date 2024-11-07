@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-
 use mercury::Resolve;
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -10,10 +7,18 @@ fn initialise() {
     console_error_panic_hook::set_once();
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct Account {
+    pub name: String,
+    pub history: Vec<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[wasm_bindgen(getter_with_clone)]
 pub struct Output {
     pub dates: Vec<String>,
-    pub accounts: HashMap<String, Vec<f64>>,
+    pub accounts: Vec<Account>,
 }
 
 fn parse_from_until(
@@ -22,10 +27,18 @@ fn parse_from_until(
     to: mercury::Datestamp,
 ) -> (
     Vec<mercury::Datestamp>,
-    HashMap<String, Vec<mercury::account::Money>>,
+    Vec<(String, Vec<mercury::account::Money>)>,
 ) {
     let mut accounts = mercury::account::Interner::default();
-    let events = mercury::syntax::compile(&mut accounts, input);
+
+    let events = mercury::syntax::compile(
+        mercury::syntax::Context {
+            accounts: &mut accounts,
+            date_start: from,
+            date_end: to,
+        },
+        input,
+    );
 
     let mut timeline = mercury::Timeline::new(&events, accounts);
     timeline.process(from, to).for_each(drop);
@@ -42,23 +55,27 @@ fn parse_from_until(
                 out
             })
         })
-        .collect::<HashMap<_, _>>();
+        .collect::<Vec<_>>();
 
     (dates.into(), full_history)
 }
 
 #[wasm_bindgen]
-pub fn parse(input: &str, from: &str, to: &str) -> Result<JsValue, String> {
+pub fn parse(input: &str, from: &str, to: &str) -> Result<Output, String> {
     const DATE_FORMAT: &str = "%Y-%m-%d";
+
     let from = mercury::Datestamp::parse_from_str(from, DATE_FORMAT).map_err(|e| e.to_string())?;
     let to = mercury::Datestamp::parse_from_str(to, DATE_FORMAT).map_err(|e| e.to_string())?;
     let (dates, accounts) = parse_from_until(input, from, to);
-    Ok(serde_wasm_bindgen::to_value(&Output {
+
+    Ok(Output {
         dates: dates
-            .iter()
+            .into_iter()
             .map(|d| d.format(DATE_FORMAT).to_string())
             .collect(),
-        accounts: accounts,
+        accounts: accounts
+            .into_iter()
+            .map(|(name, history)| Account { name, history })
+            .collect(),
     })
-    .unwrap())
 }

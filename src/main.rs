@@ -20,19 +20,24 @@ fn main() {
 
     let mut accounts = mercury::account::Interner::default();
 
-    let events = mercury::syntax::compile(&mut accounts, file_contents.as_str());
+    let from = chrono::Local::now().date_naive();
+    let to = chrono::Local::now()
+        .date_naive()
+        .checked_add_days(chrono::Days::new(365))
+        .unwrap();
+
+    let events = mercury::syntax::compile(
+        mercury::syntax::Context {
+            accounts: &mut accounts,
+            date_start: from,
+            date_end: to,
+        },
+        file_contents.as_str(),
+    );
     let mut timeline = mercury::Timeline::new(&events, accounts);
 
     {
-        timeline
-            .process(
-                chrono::Local::now().date_naive(),
-                chrono::Local::now()
-                    .date_naive()
-                    .checked_add_days(chrono::Days::new(365))
-                    .unwrap(),
-            )
-            .for_each(drop);
+        timeline.process(from, to).for_each(drop);
     }
     let history = timeline.resolve(timeline.history());
     let dates = timeline.dates();

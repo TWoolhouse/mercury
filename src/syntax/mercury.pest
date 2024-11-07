@@ -114,6 +114,8 @@ time_func_by = {
 time_func_keyword = {
     "work"
   | "today"
+  | "start"
+  | "end"
 }
 
 time = {
