@@ -9,12 +9,19 @@ use self::parser::{List, Node, NodeParent};
 
 mod parser;
 
-fn parse_root(accounts: &mut account::Interner, mut root: List) -> Vec<Event> {
+#[derive(Debug, PartialEq)]
+pub struct Context<'a> {
+    pub accounts: &'a mut account::Interner,
+    pub date_start: Datestamp,
+    pub date_end: Datestamp,
+}
+
+fn parse_root(ctx: &mut Context, mut root: List) -> Vec<Event> {
     let mut current: Vec<account::ID> = Default::default();
     root.next()
         .expect("Root must have atleast 1 child")
         .into_inner()
-        .flat_map(|node| parse_declaration(accounts, &mut current, node))
+        .flat_map(|node| parse_declaration(ctx, &mut current, node))
         .collect()
 }
 
@@ -23,7 +30,7 @@ fn parse_acc_node(accounts: &mut account::Interner, node: Node) -> account::ID {
 }
 
 fn parse_declaration<'a: 'b, 'b>(
-    accounts: &'a mut account::Interner,
+    ctx: &mut Context<'a>,
     current: &mut Vec<account::ID>,
     declaration: Node<'b>,
 ) -> Option<Event> {
@@ -32,18 +39,19 @@ fn parse_declaration<'a: 'b, 'b>(
         Rule::decl_accounts => {
             current.clear();
             for acc in node.into_inner() {
-                current.push(parse_acc_node(accounts, acc));
+                current.push(parse_acc_node(ctx.accounts, acc));
             }
             None
         }
-        Rule::decl_event => Some(parse_event(accounts, current.clone(), node)),
+        Rule::decl_event => Some(parse_event(ctx, current.clone(), node)),
         _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
     }
 }
 
-fn parse_event(accounts: &mut account::Interner, current: Vec<account::ID>, event: Node) -> Event {
+fn parse_event(ctx: &mut Context, current: Vec<account::ID>, event: Node) -> Event {
     let mut nodes = event.into_inner();
     let schedule = parse_schedule(
+        ctx,
         nodes
             .next()
             .expect("Event must have a schedule")
@@ -54,11 +62,11 @@ fn parse_event(accounts: &mut account::Interner, current: Vec<account::ID>, even
     Event {
         schedule,
         accounts: current,
-        operations: parse_statements(accounts, statements),
+        operations: parse_statements(ctx, statements),
     }
 }
 
-fn parse_schedule(node: Node) -> Schedule {
+fn parse_schedule(ctx: &mut Context, node: Node) -> Schedule {
     match node.as_rule() {
         Rule::time => {
             let node = node.into_child();
@@ -88,22 +96,22 @@ fn parse_schedule(node: Node) -> Schedule {
             let node = node.into_child();
             match node.as_rule() {
                 Rule::time_func_not => {
-                    Schedule::TimeFunctionNot(Box::new(parse_schedule(node.into_child())))
+                    Schedule::TimeFunctionNot(Box::new(parse_schedule(ctx, node.into_child())))
                 }
                 Rule::time_func_and => {
                     let mut nodes = node.into_inner();
                     Schedule::TimeFunctionAnd(
-                        Box::new(parse_schedule(nodes.next().unwrap())),
-                        Box::new(parse_schedule(nodes.next().unwrap())),
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
                     )
                 }
                 Rule::time_func_or => {
                     let mut nodes = node.into_inner();
-                    let mut schedule = parse_schedule(nodes.next().unwrap());
+                    let mut schedule = parse_schedule(ctx, nodes.next().unwrap());
                     for node in nodes {
                         schedule = Schedule::TimeFunctionOr(
                             Box::new(schedule),
-                            Box::new(parse_schedule(node)),
+                            Box::new(parse_schedule(ctx, node)),
                         );
                     }
                     schedule
@@ -111,8 +119,8 @@ fn parse_schedule(node: Node) -> Schedule {
                 Rule::time_func_by => {
                     let mut nodes = node.into_inner();
                     Schedule::TimeFunctionBy(
-                        Box::new(parse_schedule(nodes.next().unwrap())),
-                        Box::new(parse_schedule(nodes.next().unwrap())),
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
                     )
                 }
                 _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
@@ -123,6 +131,8 @@ fn parse_schedule(node: Node) -> Schedule {
                 let now = chrono::Local::now();
                 Schedule::Date(now.date_naive())
             }
+            "start" => Schedule::Date(ctx.date_start),
+            "end" => Schedule::Date(ctx.date_end - chrono::Duration::days(1)),
             "work" => todo!("work"),
             _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
         },
@@ -130,7 +140,7 @@ fn parse_schedule(node: Node) -> Schedule {
     }
 }
 
-fn parse_statements(accounts: &mut account::Interner, node: Node) -> Statements {
+fn parse_statements(ctx: &mut Context, node: Node) -> Statements {
     match node.as_rule() {
         rule @ Rule::statements_list | rule @ Rule::statements_set => {
             let mut nodes = node.into_inner();
@@ -142,31 +152,32 @@ fn parse_statements(accounts: &mut account::Interner, node: Node) -> Statements 
 
             let (acc, mut stmts) = if let Some(stmts) = second {
                 (
-                    parse_acc_node(accounts, first),
+                    parse_acc_node(ctx.accounts, first),
                     stmts
                         .into_inner()
-                        .map(|stmt| parse_statements(accounts, stmt))
+                        .map(|stmt| parse_statements(ctx, stmt))
                         .collect::<Vec<_>>(),
                 )
             } else {
                 (
-                    accounts.get_or_intern_static(if rule == Rule::statements_set {
-                        "new"
-                    } else {
-                        "self"
-                    }),
+                    ctx.accounts
+                        .get_or_intern_static(if rule == Rule::statements_set {
+                            "new"
+                        } else {
+                            "self"
+                        }),
                     first
                         .into_inner()
-                        .map(|stmt| parse_statements(accounts, stmt))
+                        .map(|stmt| parse_statements(ctx, stmt))
                         .collect(),
                 )
             };
 
-            let sym_self = accounts.get_or_intern_static("self");
+            let sym_self = ctx.accounts.get_or_intern_static("self");
             stmts.push(Statements::Single(Statement {
                 from: sym_self,
                 func: Box::new(move |ctx| ctx[sym_self]),
-                to: accounts.get_or_intern_static("super"),
+                to: ctx.accounts.get_or_intern_static("super"),
                 label: None,
             }));
 
@@ -176,27 +187,27 @@ fn parse_statements(accounts: &mut account::Interner, node: Node) -> Statements 
                 Statements::List(acc, stmts)
             }
         }
-        Rule::statements_single => Statements::Single(parse_statement(accounts, node.into_inner())),
-        Rule::statements => parse_statements(accounts, node.into_child()),
+        Rule::statements_single => Statements::Single(parse_statement(ctx, node.into_inner())),
+        Rule::statements => parse_statements(ctx, node.into_child()),
         _ => unreachable!("Unexpected rule: {:?}", node.as_rule()),
     }
 }
 
-fn parse_statement(accounts: &mut account::Interner, mut nodes: List) -> Statement {
+fn parse_statement(ctx: &mut Context, mut nodes: List) -> Statement {
     Statement {
         from: parse_acc_node(
-            accounts,
+            ctx.accounts,
             nodes.next().expect("Statement must have a from account"),
         ),
         func: parse_operation(
-            accounts,
+            ctx.accounts,
             nodes
                 .next()
                 .expect("Statement must have an operation")
                 .into_inner(),
         ),
         to: parse_acc_node(
-            accounts,
+            ctx.accounts,
             nodes.next().expect("Statement must have a to account"),
         ),
         label: nodes.next().map(|node| node.as_str().trim().into()),
@@ -299,13 +310,13 @@ fn parse_operation_func(_accounts: &mut account::Interner, node: Node) -> Operat
     todo!("parse_operation_func: '{}'", node.as_str())
 }
 
-pub fn compile(accounts: &mut account::Interner, source: impl AsRef<str>) -> Vec<Event> {
+pub fn compile(mut ctx: Context, source: impl AsRef<str>) -> Vec<Event> {
     use pest::Parser;
     match parser::Mercury::parse(Rule::root, source.as_ref().trim()) {
-        Ok(parsed) => parse_root(accounts, parsed),
+        Ok(parsed) => parse_root(&mut ctx, parsed),
         Err(e) => {
             eprintln!("Error: {}", e);
-            panic!("bad bad bad");
+            panic!("Compile Panic! {e}");
         }
     }
 }
@@ -321,9 +332,14 @@ mod test {
 "#;
         use pest::Parser;
         let mut accounts = account::Interner::default();
+        let mut ctx = Context {
+            accounts: &mut accounts,
+            date_start: Datestamp::parse_from_str("2021-01-01", "%Y-%m-%d").unwrap(),
+            date_end: Datestamp::parse_from_str("2021-12-31", "%Y-%m-%d").unwrap(),
+        };
         match parser::Mercury::parse(Rule::root, TEST.trim()) {
             Ok(parsed) => {
-                let events = parse_root(&mut accounts, parsed);
+                let events = parse_root(&mut ctx, parsed);
                 println!("{:#?}", events);
             }
             Err(e) => {
