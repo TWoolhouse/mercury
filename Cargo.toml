@@ -1,6 +1,6 @@
 [package]
 name = "mercury"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Thomas Woolhouse <thomasrwoolhouse@gmail.com>"]
 categories = ["finance", "parser-implementations"]
@@ -14,7 +14,9 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4"
+cron = "0.12"
+itertools = "0.12"
 pest = "2.7"
-pest_derive = "2.7"
-thiserror = "1.0"
-lazy_static = "1.4"
+pest_derive = { version = "2.7", features = ["grammar-extras"] }
+string-interner = "0.17.0"
