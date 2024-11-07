@@ -1,31 +1,21 @@
-mod builtin;
-mod ops;
-mod pump;
-mod syntax;
+pub mod account;
 
-pub use crate::{builtin::functions, ops::Store};
-use ops::Record;
+mod event;
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Parsing Error: {0}")]
-    Parse(#[from] Box<syntax::error::Parse>),
-    #[error("Undefined Variable: {0}")]
-    UndefinedVariable(String),
-    #[error("Missing Argument: '{0}'")]
-    ArgumentMissing(&'static str),
-    #[error("Invalid Argument: '{0}'")]
-    ArgumentInvalid(String),
-    #[error("Invalid Argument Type: '{0}'")]
-    ArgumentInvalidType(&'static str),
-}
+pub use event::Event;
 
-pub fn parse(input: &str) -> Result<ops::Store<f64>, Error> {
-    syntax::compile(syntax::parse(input)?)
-}
-pub fn evaluate(store: &ops::Store<f64>) -> Vec<(&String, (f64, Vec<Record<f64>>))> {
-    store
-        .iter()
-        .filter_map(|(_, var)| var.print.then(|| (&var.name, pump::evaluate(&var.action))))
-        .collect()
-}
+mod process;
+
+pub mod schedule;
+pub use schedule::Schedule;
+
+mod statement;
+pub use statement::{Operation, Statement, Statements};
+
+pub mod syntax;
+mod transaction;
+
+pub type Datestamp = chrono::NaiveDate;
+
+mod timeline;
+pub use timeline::{Moment as TimelineMoment, Resolve, Timeline};
