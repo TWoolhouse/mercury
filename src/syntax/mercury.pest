@@ -72,15 +72,11 @@ time_expr = _{
 time_function = {
     time_function_binary
   | time_func_not
-  | time_func_lt
-  | time_func_gt
-  | time_func_le
-  | time_func_ge
   | time_func_by
 }
 
 time_function_binary = _{
-    "(" ~ (time_func_and | time_func_or) ~ ")"
+    "(" ~ (time_func_and | time_func_or | time_func_lt | time_func_gt) ~ ")"
 }
 
 time_func_and = {
@@ -90,21 +86,16 @@ time_func_or  = {
     time_expr ~ ("|" ~ time_expr)+
 }
 
-time_func_not = {
-    "!" ~ time_expr
+time_func_lt = {
+    time_expr ~ "<" ~ time_expr
 }
 
-time_func_lt = {
-    "<" ~ time_expr
-}
 time_func_gt = {
-    ">" ~ time_expr
+    time_expr ~ ">" ~ time_expr
 }
-time_func_le = {
-    "<=" ~ time_expr
-}
-time_func_ge = {
-    ">=" ~ time_expr
+
+time_func_not = {
+    "!" ~ time_expr
 }
 
 time_func_by = {

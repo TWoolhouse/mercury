@@ -116,6 +116,20 @@ fn parse_schedule(ctx: &mut Context, node: Node) -> Schedule {
                     }
                     schedule
                 }
+                Rule::time_func_lt => {
+                    let mut nodes = node.into_inner();
+                    Schedule::TimeFunctionBefore(
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
+                    )
+                }
+                Rule::time_func_gt => {
+                    let mut nodes = node.into_inner();
+                    Schedule::TimeFunctionAfter(
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
+                        Box::new(parse_schedule(ctx, nodes.next().unwrap())),
+                    )
+                }
                 Rule::time_func_by => {
                     let mut nodes = node.into_inner();
                     Schedule::TimeFunctionBy(

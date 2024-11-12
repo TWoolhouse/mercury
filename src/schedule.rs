@@ -17,6 +17,10 @@ pub enum Schedule {
     TimeFunctionAnd(Box<Schedule>, Box<Schedule>),
     /// The dates that are in the first schedule until the first date in the second schedule
     TimeFunctionBy(Box<Schedule>, Box<Schedule>),
+    /// The dates that are in the first schedule before the first date in the second schedule
+    TimeFunctionBefore(Box<Schedule>, Box<Schedule>),
+    /// The dates that are in the first schedule after the first date in the second schedule
+    TimeFunctionAfter(Box<Schedule>, Box<Schedule>),
 }
 
 impl Schedule {
@@ -71,6 +75,28 @@ impl Schedule {
                     }
                     None
                 }))
+            }
+            Schedule::TimeFunctionBefore(schedule, predicate) => {
+                if let Some(before) = predicate.upcoming(from).next() {
+                    Box::new(
+                        schedule
+                            .upcoming(from)
+                            .take_while(move |date| date < &before),
+                    )
+                } else {
+                    Box::new(std::iter::empty())
+                }
+            }
+            Schedule::TimeFunctionAfter(schedule, predicate) => {
+                if let Some(before) = predicate.upcoming(from).next() {
+                    Box::new(
+                        schedule
+                            .upcoming(from)
+                            .skip_while(move |date| date < &before),
+                    )
+                } else {
+                    Box::new(std::iter::empty())
+                }
             }
         }
     }
@@ -201,6 +227,29 @@ mod test {
         let mut upcoming = schedule.upcoming(start());
         assert_eq!(upcoming.next().unwrap(), date("2024-02-03"));
         assert_eq!(upcoming.next().unwrap(), date("2024-04-03"));
+    }
+
+    #[test]
+    fn single_before() {
+        let schedule = Schedule::TimeFunctionBefore(
+            Box::new(s_cron("3", "*")),
+            Box::new(s_date("2024-03-05")),
+        );
+        let mut upcoming = schedule.upcoming(start());
+        assert_eq!(upcoming.next().unwrap(), date("2024-01-03"));
+        assert_eq!(upcoming.next().unwrap(), date("2024-02-03"));
+        assert_eq!(upcoming.next().unwrap(), date("2024-03-03"));
+        assert_eq!(upcoming.next(), None);
+    }
+
+    #[test]
+    fn single_after() {
+        let schedule =
+            Schedule::TimeFunctionAfter(Box::new(s_cron("3", "*")), Box::new(s_date("2024-03-05")));
+        let mut upcoming = schedule.upcoming(start());
+        assert_eq!(upcoming.next().unwrap(), date("2024-04-03"));
+        assert_eq!(upcoming.next().unwrap(), date("2024-05-03"));
+        assert_eq!(upcoming.next().unwrap(), date("2024-06-03"));
     }
 
     #[test]
