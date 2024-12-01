@@ -15,7 +15,7 @@ publish = false
 
 [dependencies]
 chrono = "0.4"
-cron = "0.12"
+cron = "0.13"
 itertools = "0.12"
 pest = "2.7"
 pest_derive = { version = "2.7", features = ["grammar-extras"] }
