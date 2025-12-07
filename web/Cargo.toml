@@ -25,6 +25,3 @@ default = ["console_error_panic_hook"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-
-[profile.release]
-opt-level = "s"

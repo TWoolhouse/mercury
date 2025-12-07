@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "web"]
+
 [package]
 name = "mercury"
 version = "0.2.0"
