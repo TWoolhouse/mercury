@@ -19,4 +19,4 @@ cron = "0.15"
 itertools = "0.12"
 pest = "2.7"
 pest_derive = { version = "2.7", features = ["grammar-extras"] }
-string-interner = "0.17.0"
+string-interner = "0.18.0"
